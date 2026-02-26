@@ -752,7 +752,8 @@ app.get('/api/export/:format', async (req, res) => {
 async function start() {
     if (useSupabase) {
         const q = await readQueue();
-        if (q.videos.length === 0 && fs.existsSync(VIDEOS_CONFIG)) {
+        const seedFromFile = process.env.SEED_QUEUE_FROM_VIDEOS_JSON === 'true' || process.env.SEED_QUEUE_FROM_VIDEOS_JSON === '1';
+        if (q.videos.length === 0 && seedFromFile && fs.existsSync(VIDEOS_CONFIG)) {
             const urls = JSON.parse(fs.readFileSync(VIDEOS_CONFIG, 'utf-8'));
             if (Array.isArray(urls) && urls.length > 0) {
                 const configNames = urls.map((u) => ({
@@ -770,6 +771,8 @@ async function start() {
             }
         } else if (q.videos.length > 0) {
             console.log(`  Queue: ${q.videos.length} videos (from Supabase)`);
+        } else if (q.videos.length === 0) {
+            console.log('  Queue: empty — add videos via the frontend (Queue Setup) or set SEED_QUEUE_FROM_VIDEOS_JSON=true to seed from server/data/videos.json');
         }
     }
     app.listen(PORT, () => {

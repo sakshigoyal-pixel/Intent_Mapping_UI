@@ -14,7 +14,7 @@
 This creates:
 
 - **annotations** – intent annotations (replaces `db.json` / MongoDB)
-- **queue** – video queue state (replaces `queue.json`)
+- **queue** – video queue state (replaces `queue.json`). By default the queue is **not** seeded from `server/data/videos.json`; add videos via the frontend (Queue Setup → paste URLs → Load Videos). To seed from `videos.json` when the queue is empty, set `SEED_QUEUE_FROM_VIDEOS_JSON=true` in `server/.env`.
 - **timestamps** – legacy one-row-per-video segments (jsonb)
 - **timestamp_rows** – segment rows with `video_name`, `start`, `end` (all strings). The API uses this for segments: it looks up by **video name** (same as in the queue) and parses `start`/`end` (e.g. `00:12`, `01:30`) to seconds.
 
