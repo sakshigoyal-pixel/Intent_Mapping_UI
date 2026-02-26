@@ -134,8 +134,13 @@ function getLocalVideoPath(videoName) {
 }
 
 async function downloadAllVideos() {
-    const queue = JSON.parse(fs.readFileSync(QUEUE_PATH, 'utf-8'));
-    if (queue.videos.length === 0) return;
+    let queue;
+    if (useSupabase) {
+        queue = await supabase.readQueue();
+    } else {
+        queue = JSON.parse(fs.readFileSync(QUEUE_PATH, 'utf-8'));
+    }
+    if (!queue || !queue.videos || queue.videos.length === 0) return;
 
     let remoteDownloadFailed = false;
     console.log(`\n  Checking ${queue.videos.length} videos for local cache...`);
