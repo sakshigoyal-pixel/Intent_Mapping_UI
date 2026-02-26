@@ -143,14 +143,10 @@ const Dashboard = () => {
                     ) : (
                         <>
                             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                                Add video URLs to the config file and restart the server:
+                                Go to Queue Setup, paste your video URLs (one per line), and click Load Videos.
                             </p>
-                            <code className="block text-xs font-mono px-4 py-3 rounded-lg text-left" style={{ background: 'var(--bg-base)', color: 'var(--accent)', border: '1px solid var(--border-default)' }}>
-                                server/data/videos.json
-                            </code>
                             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                                Format: a JSON array of video URLs, one per entry.<br />
-                                Timestamp CSVs go in <code className="text-xs" style={{ color: 'var(--accent)' }}>server/data/timestamps/</code>
+                                You can also add video URLs to <code className="text-xs" style={{ color: 'var(--accent)' }}>server/data/videos.json</code> and set <code className="text-xs" style={{ color: 'var(--accent)' }}>SEED_QUEUE_FROM_VIDEOS_JSON=true</code> on the server if you prefer to seed from file.
                             </p>
                         </>
                     )}

@@ -264,6 +264,51 @@ function isSegmentAnnotated(seg, annotations) {
     );
 }
 
+/** Enrich a single queue video with hasTimestamps, downloaded, fullyAnnotated. Never throws — returns defaults on failure so one bad video doesn't drop the whole queue. */
+async function enrichVideo(v) {
+    try {
+        const csvPath = path.join(TIMESTAMPS_DIR, v.name + '.csv');
+        let hasTs = false;
+        if (useSupabase) {
+            try {
+                const out = await supabase.timestamps.get(v.name);
+                hasTs = Array.isArray(out?.segments) && out.segments.length > 0;
+            } catch { hasTs = false; }
+        } else {
+            hasTs = fs.existsSync(csvPath);
+        }
+        let downloaded = false;
+        let localUrl = null;
+        try {
+            const localPath = getLocalVideoPath(v.name);
+            downloaded = fs.existsSync(localPath) && fs.statSync(localPath).size > 0;
+            if (downloaded) localUrl = `/api/video/${v.name}`;
+        } catch { }
+        let fullyAnnotated = false;
+        try {
+            const segments = await getSegmentsForVideo(v.name);
+            const annotations = await storage.getAll({ videoId: v.name, sort: 'startTime' });
+            fullyAnnotated = segments.length > 0 && segments.every(seg => isSegmentAnnotated(seg, annotations));
+        } catch { }
+        return {
+            ...v,
+            hasTimestamps: hasTs,
+            downloaded,
+            localUrl,
+            fullyAnnotated: !!fullyAnnotated,
+        };
+    } catch (e) {
+        console.warn(`Enrich video ${v.name} failed:`, e.message);
+        return {
+            ...v,
+            hasTimestamps: false,
+            downloaded: false,
+            localUrl: null,
+            fullyAnnotated: false,
+        };
+    }
+}
+
 // ── Queue ────────────────────────────────────────────
 
 const readQueue = useSupabase
@@ -277,24 +322,7 @@ const writeQueue = useSupabase
 app.get('/api/queue', async (req, res) => {
     try {
         const queue = await readQueue();
-        const enriched = await Promise.all(queue.videos.map(async (v) => {
-            const csvPath = path.join(TIMESTAMPS_DIR, v.name + '.csv');
-            const hasTs = useSupabase
-                ? (await supabase.timestamps.get(v.name)).segments?.length > 0
-                : fs.existsSync(csvPath);
-            const localPath = getLocalVideoPath(v.name);
-            const downloaded = fs.existsSync(localPath) && fs.statSync(localPath).size > 0;
-            const segments = await getSegmentsForVideo(v.name);
-            const annotations = await storage.getAll({ videoId: v.name, sort: 'startTime' });
-            const fullyAnnotated = segments.length > 0 && segments.every(seg => isSegmentAnnotated(seg, annotations));
-            return {
-                ...v,
-                hasTimestamps: hasTs,
-                downloaded,
-                localUrl: downloaded ? `/api/video/${v.name}` : null,
-                fullyAnnotated: !!fullyAnnotated,
-            };
-        }));
+        const enriched = await Promise.all(queue.videos.map((v) => enrichVideo(v)));
         res.json({
             currentIndex: queue.currentIndex,
             videos: enriched,
@@ -321,15 +349,7 @@ app.post('/api/queue', async (req, res) => {
     queue.videos[0].status = 'in_progress';
     try {
         await writeQueue(queue);
-        const enriched = await Promise.all(queue.videos.map(async (v) => {
-            const hasTs = useSupabase
-                ? (await supabase.timestamps.get(v.name)).segments?.length > 0
-                : fs.existsSync(path.join(TIMESTAMPS_DIR, v.name + '.csv'));
-            const segments = await getSegmentsForVideo(v.name);
-            const annotations = await storage.getAll({ videoId: v.name, sort: 'startTime' });
-            const fullyAnnotated = segments.length > 0 && segments.every(seg => isSegmentAnnotated(seg, annotations));
-            return { ...v, hasTimestamps: hasTs, fullyAnnotated: !!fullyAnnotated };
-        }));
+        const enriched = await Promise.all(queue.videos.map((v) => enrichVideo(v)));
         res.json({ currentIndex: queue.currentIndex, videos: enriched, timestampsSource: useSupabase ? 'supabase' : 'local' });
     } catch (e) {
         console.error(e);
@@ -349,15 +369,7 @@ app.put('/api/queue/current', async (req, res) => {
             if (i === index && v.status !== 'completed') v.status = 'in_progress';
         });
         await writeQueue(queue);
-        const enriched = await Promise.all(queue.videos.map(async (v) => {
-            const hasTs = useSupabase
-                ? (await supabase.timestamps.get(v.name)).segments?.length > 0
-                : fs.existsSync(path.join(TIMESTAMPS_DIR, v.name + '.csv'));
-            const segments = await getSegmentsForVideo(v.name);
-            const annotations = await storage.getAll({ videoId: v.name, sort: 'startTime' });
-            const fullyAnnotated = segments.length > 0 && segments.every(seg => isSegmentAnnotated(seg, annotations));
-            return { ...v, hasTimestamps: hasTs, fullyAnnotated: !!fullyAnnotated };
-        }));
+        const enriched = await Promise.all(queue.videos.map((v) => enrichVideo(v)));
         res.json({ currentIndex: queue.currentIndex, videos: enriched, timestampsSource: useSupabase ? 'supabase' : 'local' });
     } catch (e) {
         console.error(e);
@@ -377,15 +389,7 @@ app.put('/api/queue/:index/complete', async (req, res) => {
             queue.videos[idx + 1].status = 'in_progress';
         }
         await writeQueue(queue);
-        const enriched = await Promise.all(queue.videos.map(async (v) => {
-            const hasTs = useSupabase
-                ? (await supabase.timestamps.get(v.name)).segments?.length > 0
-                : fs.existsSync(path.join(TIMESTAMPS_DIR, v.name + '.csv'));
-            const segments = await getSegmentsForVideo(v.name);
-            const annotations = await storage.getAll({ videoId: v.name, sort: 'startTime' });
-            const fullyAnnotated = segments.length > 0 && segments.every(seg => isSegmentAnnotated(seg, annotations));
-            return { ...v, hasTimestamps: hasTs, fullyAnnotated: !!fullyAnnotated };
-        }));
+        const enriched = await Promise.all(queue.videos.map((v) => enrichVideo(v)));
         res.json({ currentIndex: queue.currentIndex, videos: enriched, timestampsSource: useSupabase ? 'supabase' : 'local' });
     } catch (e) {
         console.error(e);

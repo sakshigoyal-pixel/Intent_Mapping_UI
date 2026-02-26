@@ -1,5 +1,7 @@
 cache/
 data/
+# Allow committing video list for deployment (e.g. Railway); optional if using VIDEO_URLS env
+!server/data/videos.json
 node_modules/
 .env
 .env.local
