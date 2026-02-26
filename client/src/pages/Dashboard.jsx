@@ -30,12 +30,26 @@ const Dashboard = () => {
         try {
             const res = await queueService.get();
             const videos = res.data?.videos;
-            if (Array.isArray(videos) && videos.length > 0) {
-                setQueue(res.data);
-                await activateVideo(res.data, res.data.currentIndex);
-            } else {
+            if (!Array.isArray(videos) || videos.length === 0) {
                 setLoadError('empty');
+                setLoading(false);
+                return;
             }
+            let data = res.data;
+            const incompleteIndexes = videos.map((v, i) => i).filter(i => !videos[i].fullyAnnotated);
+            if (incompleteIndexes.length === 0) {
+                setQueue(data);
+                setLoadError('all_annotated');
+                setLoading(false);
+                return;
+            }
+            if (videos[data.currentIndex]?.fullyAnnotated) {
+                const firstIncomplete = incompleteIndexes[0];
+                const setRes = await queueService.setCurrent(firstIncomplete);
+                data = setRes.data;
+            }
+            setQueue(data);
+            await activateVideo(data, data.currentIndex);
         } catch (err) {
             console.error('Failed to load queue:', err);
             setLoadError(err.message || 'Cannot reach server');
@@ -64,18 +78,29 @@ const Dashboard = () => {
             return;
         }
         try {
-            const res = await queueService.complete(idx);
-            setQueue(res.data);
-            await activateVideo(res.data, res.data.currentIndex);
+            let res = await queueService.complete(idx);
+            let data = res.data;
+            const newIncomplete = data.videos.map((v, i) => i).filter(i => !data.videos[i].fullyAnnotated);
+            if (newIncomplete.length > 0 && data.videos[data.currentIndex]?.fullyAnnotated) {
+                res = await queueService.setCurrent(newIncomplete[0]);
+                data = res.data;
+            }
+            setQueue(data);
+            await activateVideo(data, data.currentIndex);
             setCurrentTime(0);
             setDuration(0);
+            if (newIncomplete.length === 0) {
+                setLoadError('all_annotated');
+            }
         } catch (err) { toast.error(err.message); }
     };
 
     const handlePrevVideo = async () => {
-        if (!queue || queue.currentIndex <= 0) return;
+        if (!queue) return;
+        const prevIncomplete = incompleteIndexes[incompleteIndexes.indexOf(queue.currentIndex) - 1];
+        if (prevIncomplete === undefined) return;
         try {
-            const res = await queueService.setCurrent(queue.currentIndex - 1);
+            const res = await queueService.setCurrent(prevIncomplete);
             setQueue(res.data);
             await activateVideo(res.data, res.data.currentIndex);
             setCurrentTime(0);
@@ -137,6 +162,28 @@ const Dashboard = () => {
         );
     }
 
+    if (loadError === 'all_annotated') {
+        return (
+            <div className="h-full flex items-center justify-center p-6">
+                <div className="glass-morphism rounded-2xl p-8 max-w-lg text-center space-y-4">
+                    <Check size={48} style={{ color: 'var(--success)' }} className="mx-auto" />
+                    <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+                        All annotations complete
+                    </h2>
+                    <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                        Every video has all timestamp segments annotated. Nothing left to do in the annotation tool.
+                    </p>
+                    <button onClick={loadQueue} className="btn-primary px-5 py-2 text-sm inline-flex items-center gap-2 mx-auto">
+                        <RefreshCw size={14} /> Reload
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    const incompleteIndexes = queue.videos.map((v, i) => i).filter(i => !queue.videos[i].fullyAnnotated);
+    const displayPosition = incompleteIndexes.indexOf(queue.currentIndex) + 1;
+    const incompleteCount = incompleteIndexes.length;
     const currentVideo = queue.videos[queue.currentIndex];
     const completedCount = queue.videos.filter(v => v.status === 'completed').length;
     const totalCount = queue.videos.length;
@@ -149,7 +196,7 @@ const Dashboard = () => {
                 <div className="flex items-center gap-3">
                     <Video size={16} style={{ color: 'var(--accent)' }} />
                     <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                        Video {queue.currentIndex + 1} of {totalCount}
+                        Video {displayPosition} of {incompleteCount} (to annotate)
                     </span>
                     <span className="text-xs font-mono px-2 py-0.5 rounded-md" style={{ background: 'var(--bg-base)', color: 'var(--text-muted)', border: '1px solid var(--border-default)' }}>
                         {currentVideo?.name?.split('/').pop()}
@@ -165,28 +212,31 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            {/* Global progress bar */}
+            {/* Global progress bar (incomplete count) */}
             <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--input-bg)' }}>
                 <div className="h-full rounded-full transition-all duration-300" style={{
-                    width: `${(completedCount / totalCount) * 100}%`,
+                    width: `${incompleteCount ? (displayPosition / incompleteCount) * 100 : 0}%`,
                     background: 'var(--success)',
                 }} />
             </div>
 
-            {/* Video mini-nav */}
+            {/* Video mini-nav (only videos still needing annotation) */}
             <div className="flex flex-wrap gap-1.5">
-                {queue.videos.map((v, idx) => (
-                    <button key={idx} onClick={() => handleJumpToVideo(idx)}
-                        className="w-8 h-8 rounded-md text-[10px] font-mono font-bold transition-all"
-                        title={v.name}
-                        style={{
-                            background: idx === queue.currentIndex ? 'var(--accent)' : v.status === 'completed' ? 'var(--success)' : 'var(--input-bg)',
-                            color: idx === queue.currentIndex || v.status === 'completed' ? 'white' : 'var(--text-muted)',
-                            border: idx === queue.currentIndex ? '2px solid var(--accent)' : '1px solid var(--border-default)',
-                        }}>
-                        {idx + 1}
-                    </button>
-                ))}
+                {incompleteIndexes.map((realIdx, displayIdx) => {
+                    const v = queue.videos[realIdx];
+                    return (
+                        <button key={realIdx} onClick={() => handleJumpToVideo(realIdx)}
+                            className="w-8 h-8 rounded-md text-[10px] font-mono font-bold transition-all"
+                            title={v.name}
+                            style={{
+                                background: realIdx === queue.currentIndex ? 'var(--accent)' : v.status === 'completed' ? 'var(--success)' : 'var(--input-bg)',
+                                color: realIdx === queue.currentIndex || v.status === 'completed' ? 'white' : 'var(--text-muted)',
+                                border: realIdx === queue.currentIndex ? '2px solid var(--accent)' : '1px solid var(--border-default)',
+                            }}>
+                            {displayIdx + 1}
+                        </button>
+                    );
+                })}
             </div>
 
             {/* Video Player */}
@@ -225,15 +275,15 @@ const Dashboard = () => {
 
             {/* Complete & navigate */}
             <div className="flex items-center gap-3">
-                <button onClick={handlePrevVideo} disabled={queue.currentIndex === 0}
+                <button onClick={handlePrevVideo} disabled={displayPosition <= 1}
                     className="btn-secondary text-sm px-4 py-2 disabled:opacity-30">
                     Prev Video
                 </button>
                 <div className="flex-1" />
                 <button onClick={handleNextVideo}
                     className="btn-primary text-sm px-6 py-2.5 flex items-center gap-2"
-                    disabled={queue.currentIndex >= totalCount - 1}>
-                    {queue.currentIndex >= totalCount - 1 ? (
+                    disabled={displayPosition >= incompleteCount}>
+                    {displayPosition >= incompleteCount ? (
                         <><Check size={16} /> All Done</>
                     ) : (
                         <><ChevronRight size={16} /> Complete &amp; Next Video</>
