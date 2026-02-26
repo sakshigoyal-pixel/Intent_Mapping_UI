@@ -138,6 +138,7 @@ async function downloadAllVideos() {
     if (useSupabase) {
         queue = await supabase.readQueue();
     } else {
+        if (!fs.existsSync(QUEUE_PATH)) return;
         queue = JSON.parse(fs.readFileSync(QUEUE_PATH, 'utf-8'));
     }
     if (!queue || !queue.videos || queue.videos.length === 0) return;
