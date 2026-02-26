@@ -3,7 +3,7 @@ import VideoPlayer from '../components/VideoPlayer';
 import SegmentReviewer from '../components/SegmentReviewer';
 import AnnotationLogTable from '../components/AnnotationLogTable';
 import { useAnnotations, INTENTS } from '../context/AnnotationContext';
-import { queueService, timestampService } from '../services/api';
+import { queueService, timestampService, API_ORIGIN } from '../services/api';
 import { Search, X, Filter, ChevronRight, Check, Loader2, Video, RefreshCw, FileText } from 'lucide-react';
 import { toast } from 'react-toastify';
 
@@ -113,7 +113,7 @@ const Dashboard = () => {
                     </h2>
                     {isConnectionError ? (
                         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                            Make sure the backend is running at <code className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-base)', color: 'var(--accent)' }}>http://localhost:5001</code> and try again.
+                            Make sure the backend is running at <code className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-base)', color: 'var(--accent)' }}>{API_ORIGIN}</code> and try again.
                         </p>
                     ) : (
                         <>
@@ -194,7 +194,7 @@ const Dashboard = () => {
                 <VideoPlayer
                     ref={videoRef}
                     videoUrl={currentVideo?.localUrl
-                        ? `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${currentVideo.localUrl}`
+                        ? `${API_ORIGIN}${currentVideo.localUrl}`
                         : currentVideo?.url}
                     videoLabel={currentVideo?.name?.split('/').pop()}
                     onTimeUpdate={setCurrentTime}
