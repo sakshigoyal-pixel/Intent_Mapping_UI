@@ -234,7 +234,7 @@ function parseTimestampCSV(content) {
         const end = parseTimeVal(parts[1]);
         if (start !== null && end !== null && end > start) segments.push({ start, end });
     }
-    return segments;
+    return segments.sort((a, b) => a.start - b.start);
 }
 
 function parseTimeVal(str) {
@@ -249,7 +249,8 @@ function parseTimeVal(str) {
 async function getSegmentsForVideo(videoName) {
     if (useSupabase) {
         const out = await supabase.timestamps.get(videoName);
-        return out.segments || [];
+        const segs = out.segments || [];
+        return segs.sort((a, b) => a.start - b.start);
     }
     const csvPath = path.join(TIMESTAMPS_DIR, videoName + '.csv');
     if (!fs.existsSync(csvPath)) return [];
@@ -488,6 +489,9 @@ app.get('/api/timestamps/:folder/:file', async (req, res) => {
     try {
         if (useSupabase) {
             const out = await supabase.timestamps.get(videoName);
+            if (Array.isArray(out.segments)) {
+                out.segments.sort((a, b) => a.start - b.start);
+            }
             return res.json(out);
         }
         const csvPath = path.join(TIMESTAMPS_DIR, videoName + '.csv');

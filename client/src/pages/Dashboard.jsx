@@ -64,7 +64,8 @@ const Dashboard = () => {
         setCurrentVideoId(video.name);
         try {
             const res = await timestampService.get(video.name);
-            setSegments(res.data.segments);
+            const sorted = (res.data.segments || []).sort((a, b) => a.start - b.start);
+            setSegments(sorted);
         } catch {
             setSegments(null);
         }
