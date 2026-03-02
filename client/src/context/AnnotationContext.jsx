@@ -85,7 +85,7 @@ export const AnnotationProvider = ({ children }) => {
                 (a.text || '').toLowerCase().includes(term) || a.intent.toLowerCase().includes(term)
             );
         }
-        return result;
+        return [...result].sort((a, b) => (a.startTime ?? 0) - (b.startTime ?? 0));
     }, [annotations, filterIntent, searchTerm]);
 
     useEffect(() => { fetchAnnotations(); }, [fetchAnnotations]);

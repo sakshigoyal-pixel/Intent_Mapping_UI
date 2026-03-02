@@ -234,6 +234,7 @@ function parseTimestampCSV(content) {
         const end = parseTimeVal(parts[1]);
         if (start !== null && end !== null && end > start) segments.push({ start, end });
     }
+    segments.sort((a, b) => a.start - b.start);
     return segments;
 }
 
@@ -245,16 +246,19 @@ function parseTimeVal(str) {
     return isNaN(n) ? null : n;
 }
 
-/** Get segments for a video (Supabase or local CSV). Returns [] if none. */
+/** Get segments for a video (Supabase or local CSV). Returns [] if none, sorted by start. */
 async function getSegmentsForVideo(videoName) {
+    let segs = [];
     if (useSupabase) {
         const out = await supabase.timestamps.get(videoName);
-        return out.segments || [];
+        segs = out.segments || [];
+    } else {
+        const csvPath = path.join(TIMESTAMPS_DIR, videoName + '.csv');
+        if (!fs.existsSync(csvPath)) return [];
+        const content = fs.readFileSync(csvPath, 'utf-8');
+        segs = parseTimestampCSV(content);
     }
-    const csvPath = path.join(TIMESTAMPS_DIR, videoName + '.csv');
-    if (!fs.existsSync(csvPath)) return [];
-    const content = fs.readFileSync(csvPath, 'utf-8');
-    return parseTimestampCSV(content);
+    return segs.slice().sort((a, b) => a.start - b.start);
 }
 
 /** True if every segment has an annotation (match by start/end within 0.5s, same as SegmentReviewer). */

@@ -1,9 +1,11 @@
 import { Trash2, Edit3, MessageCircle, Clock } from 'lucide-react';
 import { useAnnotations } from '../context/AnnotationContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { secondsToMMSS } from '../utils/time';
 
 const AnnotationTable = ({ onSelect, selectedId }) => {
     const { annotations, deleteAnnotation } = useAnnotations();
+    const sortedAnnotations = [...annotations].sort((a, b) => (a.startTime ?? 0) - (b.startTime ?? 0));
 
     if (annotations.length === 0) {
         return (
@@ -18,7 +20,7 @@ const AnnotationTable = ({ onSelect, selectedId }) => {
     return (
         <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide p-4 space-y-3">
             <AnimatePresence mode='popLayout'>
-                {annotations.map((ann) => (
+                {sortedAnnotations.map((ann) => (
                     <motion.div
                         key={ann.id}
                         layout
@@ -54,10 +56,10 @@ const AnnotationTable = ({ onSelect, selectedId }) => {
                         <div className="flex items-center gap-3 text-xs text-slate-500">
                             <div className="flex items-center gap-1">
                                 <Clock size={12} />
-                                <span>{ann.startTime}s - {ann.endTime}s</span>
+                                <span>{secondsToMMSS(ann.startTime)} - {secondsToMMSS(ann.endTime)}</span>
                             </div>
                             <span className="w-1 h-1 bg-slate-700 rounded-full" />
-                            <span>{Math.round(ann.endTime - ann.startTime)}s duration</span>
+                            <span>{secondsToMMSS(ann.endTime - ann.startTime)} duration</span>
                         </div>
                     </motion.div>
                 ))}
