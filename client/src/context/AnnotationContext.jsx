@@ -16,6 +16,10 @@ export const INTENTS = [
     { value: 'Hesitation', label: 'Hesitation', description: 'Patient pauses or hesitates before responding' },
     { value: 'Both Same', label: 'Both Same', description: 'Patient reports both options look the same' },
     { value: 'Repeat', label: 'Repeat', description: 'Patient or doctor requests to repeat the test or question' },
+    { value: 'Do nothing', label: 'Do nothing', description: 'No action or change needed' },
+    { value: 'previous power better', label: 'previous power better', description: 'Previous prescription or power was better' },
+    { value: 'Current power better', label: 'Current power better', description: 'Current prescription or power is better' },
+    { value: 'reads the chart', label: 'reads the chart', description: 'Patient reads from the chart' },
 ];
 
 export const AnnotationProvider = ({ children }) => {
