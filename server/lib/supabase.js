@@ -182,7 +182,8 @@ async function timestampsGet(videoName) {
             if (start != null && end != null && end > start) return { start, end };
             return null;
         })
-        .filter(Boolean);
+        .filter(Boolean)
+        .sort((a, b) => a.start - b.start);
     return { videoName, segments };
 }
 
