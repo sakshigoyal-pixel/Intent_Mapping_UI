@@ -292,9 +292,13 @@ async function enrichVideo(v) {
         } catch { }
         let fullyAnnotated = false;
         try {
-            const segments = await getSegmentsForVideo(v.name);
-            const annotations = await storage.getAll({ videoId: v.name, sort: 'startTime' });
-            fullyAnnotated = segments.length > 0 && segments.every(seg => isSegmentAnnotated(seg, annotations));
+            if (v.status === 'completed') {
+                fullyAnnotated = true;
+            } else {
+                const segments = await getSegmentsForVideo(v.name);
+                const annotations = await storage.getAll({ videoId: v.name, sort: 'startTime' });
+                fullyAnnotated = segments.length > 0 && segments.every(seg => isSegmentAnnotated(seg, annotations));
+            }
         } catch { }
         return {
             ...v,

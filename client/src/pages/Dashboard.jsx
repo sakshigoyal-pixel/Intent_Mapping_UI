@@ -36,18 +36,6 @@ const Dashboard = () => {
                 return;
             }
             let data = res.data;
-            const incompleteIndexes = videos.map((v, i) => i).filter(i => !videos[i].fullyAnnotated);
-            if (incompleteIndexes.length === 0) {
-                setQueue(data);
-                setLoadError('all_annotated');
-                setLoading(false);
-                return;
-            }
-            if (videos[data.currentIndex]?.fullyAnnotated) {
-                const firstIncomplete = incompleteIndexes[0];
-                const setRes = await queueService.setCurrent(firstIncomplete);
-                data = setRes.data;
-            }
             setQueue(data);
             await activateVideo(data, data.currentIndex);
         } catch (err) {
@@ -74,34 +62,33 @@ const Dashboard = () => {
     const handleNextVideo = async () => {
         if (!queue) return;
         const idx = queue.currentIndex;
-        if (idx >= queue.videos.length - 1) {
-            toast.success('All videos processed!');
-            return;
-        }
         try {
             let res = await queueService.complete(idx);
             let data = res.data;
-            const newIncomplete = data.videos.map((v, i) => i).filter(i => !data.videos[i].fullyAnnotated);
-            if (newIncomplete.length > 0 && data.videos[data.currentIndex]?.fullyAnnotated) {
-                res = await queueService.setCurrent(newIncomplete[0]);
+            const nextIncomplete = data.videos.findIndex((v, i) => i > idx && !v.fullyAnnotated);
+            if (nextIncomplete !== -1) {
+                res = await queueService.setCurrent(nextIncomplete);
                 data = res.data;
+            } else {
+                const firstIncomplete = data.videos.findIndex(v => !v.fullyAnnotated);
+                if (firstIncomplete !== -1) {
+                    res = await queueService.setCurrent(firstIncomplete);
+                    data = res.data;
+                } else {
+                    toast.success('All videos annotated!');
+                }
             }
             setQueue(data);
             await activateVideo(data, data.currentIndex);
             setCurrentTime(0);
             setDuration(0);
-            if (newIncomplete.length === 0) {
-                setLoadError('all_annotated');
-            }
         } catch (err) { toast.error(err.message); }
     };
 
     const handlePrevVideo = async () => {
-        if (!queue) return;
-        const prevIncomplete = incompleteIndexes[incompleteIndexes.indexOf(queue.currentIndex) - 1];
-        if (prevIncomplete === undefined) return;
+        if (!queue || queue.currentIndex <= 0) return;
         try {
-            const res = await queueService.setCurrent(prevIncomplete);
+            const res = await queueService.setCurrent(queue.currentIndex - 1);
             setQueue(res.data);
             await activateVideo(res.data, res.data.currentIndex);
             setCurrentTime(0);
@@ -159,31 +146,10 @@ const Dashboard = () => {
         );
     }
 
-    if (loadError === 'all_annotated') {
-        return (
-            <div className="h-full flex items-center justify-center p-6">
-                <div className="glass-morphism rounded-2xl p-8 max-w-lg text-center space-y-4">
-                    <Check size={48} style={{ color: 'var(--success)' }} className="mx-auto" />
-                    <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-                        All annotations complete
-                    </h2>
-                    <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                        Every video has all timestamp segments annotated. Nothing left to do in the annotation tool.
-                    </p>
-                    <button onClick={loadQueue} className="btn-primary px-5 py-2 text-sm inline-flex items-center gap-2 mx-auto">
-                        <RefreshCw size={14} /> Reload
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    const incompleteIndexes = queue.videos.map((v, i) => i).filter(i => !queue.videos[i].fullyAnnotated);
-    const displayPosition = incompleteIndexes.indexOf(queue.currentIndex) + 1;
-    const incompleteCount = incompleteIndexes.length;
     const currentVideo = queue.videos[queue.currentIndex];
-    const completedCount = queue.videos.filter(v => v.status === 'completed').length;
+    const completedCount = queue.videos.filter(v => v.fullyAnnotated).length;
     const totalCount = queue.videos.length;
+    const allDone = completedCount === totalCount;
 
     return (
         <div className="h-full flex flex-col p-4 md:p-6 gap-5 overflow-y-auto scrollbar-thin">
@@ -193,14 +159,19 @@ const Dashboard = () => {
                 <div className="flex items-center gap-3">
                     <Video size={16} style={{ color: 'var(--accent)' }} />
                     <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                        Video {displayPosition} of {incompleteCount} (to annotate)
+                        Video {queue.currentIndex + 1} of {totalCount}
                     </span>
                     <span className="text-xs font-mono px-2 py-0.5 rounded-md" style={{ background: 'var(--bg-base)', color: 'var(--text-muted)', border: '1px solid var(--border-default)' }}>
                         {currentVideo?.name?.split('/').pop()}
                     </span>
                     <span className="text-xs" style={{ color: 'var(--success)' }}>
-                        {completedCount} completed
+                        {completedCount}/{totalCount} completed
                     </span>
+                    {currentVideo?.fullyAnnotated && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded inline-flex items-center gap-1" style={{ background: 'rgba(34,197,94,0.15)', color: 'var(--success)' }}>
+                            <Check size={10} /> done
+                        </span>
+                    )}
                     {currentVideo?.downloaded ? (
                         <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(34,197,94,0.15)', color: 'var(--success)' }}>local</span>
                     ) : (
@@ -209,28 +180,29 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            {/* Global progress bar (incomplete count) */}
+            {/* Global progress bar */}
             <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--input-bg)' }}>
                 <div className="h-full rounded-full transition-all duration-300" style={{
-                    width: `${incompleteCount ? (displayPosition / incompleteCount) * 100 : 0}%`,
+                    width: `${totalCount ? (completedCount / totalCount) * 100 : 0}%`,
                     background: 'var(--success)',
                 }} />
             </div>
 
-            {/* Video mini-nav (only videos still needing annotation) */}
+            {/* Video mini-nav (all videos) */}
             <div className="flex flex-wrap gap-1.5">
-                {incompleteIndexes.map((realIdx, displayIdx) => {
-                    const v = queue.videos[realIdx];
+                {queue.videos.map((v, idx) => {
+                    const isCurrent = idx === queue.currentIndex;
+                    const isDone = v.fullyAnnotated;
                     return (
-                        <button key={realIdx} onClick={() => handleJumpToVideo(realIdx)}
-                            className="w-8 h-8 rounded-md text-[10px] font-mono font-bold transition-all"
-                            title={v.name}
+                        <button key={idx} onClick={() => handleJumpToVideo(idx)}
+                            className="w-8 h-8 rounded-md text-[10px] font-mono font-bold transition-all flex items-center justify-center"
+                            title={`${v.name}${isDone ? ' (completed)' : ''}`}
                             style={{
-                                background: realIdx === queue.currentIndex ? 'var(--accent)' : v.status === 'completed' ? 'var(--success)' : 'var(--input-bg)',
-                                color: realIdx === queue.currentIndex || v.status === 'completed' ? 'white' : 'var(--text-muted)',
-                                border: realIdx === queue.currentIndex ? '2px solid var(--accent)' : '1px solid var(--border-default)',
+                                background: isCurrent ? 'var(--accent)' : isDone ? 'var(--success)' : 'var(--input-bg)',
+                                color: isCurrent || isDone ? 'white' : 'var(--text-muted)',
+                                border: isCurrent ? '2px solid var(--accent)' : '1px solid var(--border-default)',
                             }}>
-                            {displayIdx + 1}
+                            {isDone ? <Check size={12} /> : idx + 1}
                         </button>
                     );
                 })}
@@ -272,15 +244,15 @@ const Dashboard = () => {
 
             {/* Complete & navigate */}
             <div className="flex items-center gap-3">
-                <button onClick={handlePrevVideo} disabled={displayPosition <= 1}
+                <button onClick={handlePrevVideo} disabled={queue.currentIndex <= 0}
                     className="btn-secondary text-sm px-4 py-2 disabled:opacity-30">
                     Prev Video
                 </button>
                 <div className="flex-1" />
                 <button onClick={handleNextVideo}
                     className="btn-primary text-sm px-6 py-2.5 flex items-center gap-2"
-                    disabled={displayPosition >= incompleteCount}>
-                    {displayPosition >= incompleteCount ? (
+                    disabled={allDone}>
+                    {allDone ? (
                         <><Check size={16} /> All Done</>
                     ) : (
                         <><ChevronRight size={16} /> Complete &amp; Next Video</>
