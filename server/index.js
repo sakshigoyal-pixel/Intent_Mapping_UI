@@ -393,6 +393,15 @@ app.put('/api/queue/:index/complete', async (req, res) => {
         const queue = await readQueue();
         if (idx < 0 || idx >= queue.videos.length)
             return res.status(400).json({ error: 'Invalid index' });
+        const video = queue.videos[idx];
+        const segments = await getSegmentsForVideo(video.name);
+        const annotations = await storage.getAll({ videoId: video.name, sort: 'startTime' });
+        const fullyAnnotated = segments.length > 0 && segments.every(seg => isSegmentAnnotated(seg, annotations));
+        if (!fullyAnnotated) {
+            return res.status(400).json({
+                error: 'Cannot mark video complete until all timestamp segments are annotated',
+            });
+        }
         queue.videos[idx].status = 'completed';
         if (idx === queue.currentIndex && idx < queue.videos.length - 1) {
             queue.currentIndex = idx + 1;
